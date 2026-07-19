@@ -73,8 +73,8 @@ def start(m):
         save_db(db_data)
         
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("▶️ ENTER NAMKEEN BATCH 🍿", web_app=WebAppInfo(url=WEB_APP_URL)))
-    caption = f"🚀 <b>Welcome to Namkeen Batch!</b>\n\nEkdum HD aur bina buffering ke lectures dekho!"
+    markup.add(InlineKeyboardButton("▶️ ENTER ALIESN BATCH 🍿", web_app=WebAppInfo(url=WEB_APP_URL)))
+    caption = f"🚀 <b>Welcome to Aliesn Batch!</b>\n\nEkdum HD aur bina buffering ke lectures dekho!"
     bot.send_message(m.chat.id, caption, reply_markup=markup, parse_mode="HTML")
 
 import re
@@ -251,7 +251,7 @@ def send_to_chat():
                 break
                 
         if msg_id:
-            caption = f"📚 **{title}**\n📍 Type: {item_type.upper()}\n\n*Downloaded via Namkeen Batch*"
+            caption = f"📚 **{title}**\n📍 Type: {item_type.upper()}\n\n*Downloaded via Aliesn Batch*"
             # copy_message forward tag hata deta hai. protect_content = screen record/forward block
             bot.copy_message(chat_id=uid, from_chat_id=BIN_CHANNEL, message_id=msg_id, protect_content=True, caption=caption, parse_mode="Markdown")
             return jsonify({"status": "success"})
