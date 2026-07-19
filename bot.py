@@ -235,7 +235,8 @@ def delete_item():
         return jsonify({"status": "deleted"})
     except Exception as e: return jsonify({"error": str(e)})
 
-# 📥 MAGIC ROUTE: App se URL aayega, ye id nikal kar seedha chat me DM karega (protect_content ke sath)
+# 📥 MAGIC ROUTE: App se URL aayega, ye id nikal kar seedha chat me DM karega (protect_content ke sat
+# 📥 MAGIC ROUTE: App se URL aayega, aur bot sidha link ke sath DM karega
 @app.route('/api/send_to_chat', methods=['POST'])
 def send_to_chat():
     data = request.json
@@ -245,20 +246,17 @@ def send_to_chat():
     item_type = data.get('type') 
     
     try:
-        # Stream URL se message ID nikalna (e.g. domain.com/15/video.mp4 -> ID is 15)
-        msg_id = None
-        for part in url.split('/'):
-            if part.isdigit():
-                msg_id = int(part)
-                break
-                
-        if msg_id:
-            caption = f"📚 **{title}**\n📍 Type: {item_type.upper()}\n\n*Downloaded via Aliesn Batch*"
-            # copy_message forward tag hata deta hai. protect_content = screen record/forward block
-            bot.copy_message(chat_id=uid, from_chat_id=BIN_CHANNEL, message_id=msg_id, protect_content=True, caption=caption, parse_mode="Markdown")
-            return jsonify({"status": "success"})
-        else:
-            return jsonify({"error": "Link invalid hai!"})
+        # URL me kabhi-kabhi "http://https://" lag jata hai, usko clean karne ke liye:
+        clean_url = url.replace("http://https://", "https://").replace("https://https://", "https://")
+        
+        # User ko bheja jane wala message
+        caption = f"📚 **{title}**\n📍 Type: {item_type.upper()}\n\n🔗 **Download / View Link:**\n[Click Here to Open]({clean_url})\n\n*Downloaded via Aliesn Batch*"
+        
+        # Bot direct text message bhej dega link ke sath
+        bot.send_message(chat_id=uid, text=caption, parse_mode="Markdown", disable_web_page_preview=False)
+        
+        return jsonify({"status": "success"})
+        
     except Exception as e:
         return jsonify({"error": str(e)})
 
