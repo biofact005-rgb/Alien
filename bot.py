@@ -23,12 +23,14 @@ db = client['bseb_video_db']
 db_collection = db['app_data']
 
 def load_db():
-    doc = db_collection.find_one({"_id": "main_data"})
+    # "main_data" ko "aliesn_data" kar diya
+    doc = db_collection.find_one({"_id": "aliesn_data"})
     if doc and "data" in doc: return doc["data"]
     return {"users": {}, "videos": []}
 
 def save_db(db_data):
-    db_collection.update_one({"_id": "main_data"}, {"$set": {"data": db_data}}, upsert=True)
+    # Yahan bhi "aliesn_data" kar diya
+    db_collection.update_one({"_id": "aliesn_data"}, {"$set": {"data": db_data}}, upsert=True)
 
 db_data = load_db()
 
