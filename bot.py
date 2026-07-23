@@ -314,7 +314,7 @@ def delete_item():
 def send_to_chat():
     data = request.json
     uid = data.get('uid')
-    url = data.get('url').replace("http://https://", "https://")
+    url = data.get('url').replace("http://https://", "https://").strip()
     title = data.get('title')
     item_type = data.get('type').upper()
     
@@ -323,48 +323,63 @@ def send_to_chat():
     try:
         import re
         msg_id = None
+        from_chat = BIN_CHANNEL  # Default Bin Channel
         
-        # 1️⃣ Check karega ki naya format (bot.local) hai kya?
+        # 1️⃣ bot.local logic (Jab bot me direct file bhej ke upload kiya ho)
         match_local = re.search(r'bot\.local/(\d+)/', url)
         if match_local:
             msg_id = int(match_local.group(1))
             
-        # 2️⃣ Check karega ki TXT File wala purana Telegram link hai kya?
+        # 2️⃣ t.me/c/... logic (Agar TXT me Private Channel ka link ho)
+        elif "t.me/c/" in url:
+            match = re.search(r't\.me/c/(\d+)/(\d+)', url)
+            if match:
+                from_chat = int("-100" + match.group(1)) # Private channel ID format
+                msg_id = int(match.group(2))
+                
+        # 3️⃣ t.me/username/... logic (Agar TXT me Public Channel ka link ho)
         elif "t.me/" in url:
-            try:
-                # Example: https://t.me/c/123456/678 -> extract 678
-                msg_id = int(url.rstrip('/').split('/')[-1].split('?')[0])
-            except:
-                pass
+            match = re.search(r't\.me/([^/]+)/(\d+)', url)
+            if match and match.group(1) not in ['share', 'joinchat']:
+                from_chat = "@" + match.group(1)
+                msg_id = int(match.group(2))
 
-        # 🚀 ASLI JAADU: Agar Message ID mil gayi toh direct File Stream bhejega!
+        # 🚀 ASLI JAADU: Agar Message ID mil gayi toh direct Telegram File copy karega!
         if msg_id:
             try:
                 bot.copy_message(
                     chat_id=uid, 
-                    from_chat_id=BIN_CHANNEL, 
+                    from_chat_id=from_chat, 
                     message_id=msg_id, 
                     caption=caption, 
                     parse_mode="Markdown", 
-                    protect_content=True # 🛡️ Anti-Save yaha bhi kaam karega
+                    protect_content=True # 🛡️ Anti-Save
                 )
                 return jsonify({"status": "success"})
-            except Exception as copy_err:
-                # Agar copy fail hua (file delete ho gayi ya bot admin nahi hai) toh aage badhega
-                print("Copy Error:", copy_err)
-                pass
+            except Exception as e:
+                print("Copy Error:", e)
+                pass # Agar kisi wajah se copy fail ho, toh neeche jayega
+                
+        # 🌐 EXTERNAL URL LOGIC: Agar direct MP4 ya PDF link ho, toh usko file me convert karega!
+        try:
+            if item_type == 'VIDEO':
+                bot.send_video(chat_id=uid, video=url, caption=caption, parse_mode="Markdown", protect_content=True)
+            else:
+                bot.send_document(chat_id=uid, document=url, caption=caption, parse_mode="Markdown", protect_content=True)
+            return jsonify({"status": "success"})
             
-        # ⚠️ FALLBACK: Agar link YouTube ya bahar ka hai, toh normal Text me bhejega
-        fallback_caption = f"{caption}\n\n🔗 **Link:** [Click Here to Open]({url})"
-        bot.send_message(
-            chat_id=uid, 
-            text=fallback_caption, 
-            parse_mode="Markdown", 
-            protect_content=True,
-            disable_web_page_preview=False
-        )
-        return jsonify({"status": "success"})
-        
+        except Exception as e:
+            # ⚠️ ABSOLUTE FALLBACK: Jab kuch bhi kaam na kare, sirf tabhi text bhejega
+            fallback_caption = f"{caption}\n\n🔗 **Link:** [Click Here to Open]({url})"
+            bot.send_message(
+                chat_id=uid, 
+                text=fallback_caption, 
+                parse_mode="Markdown", 
+                protect_content=True,
+                disable_web_page_preview=False
+            )
+            return jsonify({"status": "success"})
+            
     except Exception as e:
         return jsonify({"error": str(e)})
         
