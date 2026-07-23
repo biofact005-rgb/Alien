@@ -315,13 +315,43 @@ def send_to_chat():
     data = request.json
     uid = data.get('uid')
     url = data.get('url').replace("http://https://", "https://")
+    title = data.get('title')
+    item_type = data.get('type').upper()
     
-    caption = f"📚 **{data.get('title')}**\n📍 Type: {data.get('type').upper()}\n\n🔗 **View / Download Link:**\n[Open File]({url})\n\n*Downloaded via Aliesn Batch*"
+    # Ye caption actual video/file ke niche aayega
+    caption = f"📚 **{title}**\n📍 Type: {item_type}\n\n*Downloaded via Aliesn Batch*"
     
     try:
-        # 🔥 ANTI-SAVE & ANTI-FORWARD SECURITY
-        bot.send_message(chat_id=uid, text=caption, parse_mode="Markdown", protect_content=True)
+        # 🟢 LOGIC: Agar file humare BIN_CHANNEL me upload hui thi (bot.local URL)
+        if "bot.local" in url:
+            import re
+            # URL me se message ID nikalenge (e.g., https://bot.local/1234/video.mp4 -> 1234)
+            match = re.search(r'bot\.local/(\d+)/', url)
+            if match:
+                msg_id = int(match.group(1))
+                
+                # 🚀 ASLI JAADU: Bin channel se direct File/Video utha ke user ko bhejega
+                bot.copy_message(
+                    chat_id=uid, 
+                    from_chat_id=BIN_CHANNEL, 
+                    message_id=msg_id, 
+                    caption=caption, 
+                    parse_mode="Markdown", 
+                    protect_content=True # 🛡️ Anti-Save yaha bhi kaam karega!
+                )
+                return jsonify({"status": "success"})
+                
+        # 🟡 FALLBACK: Agar TXT file ke zariye YouTube ya koi bahar ka link dala hai
+        fallback_caption = f"{caption}\n\n🔗 **Link:** [Click Here to Open]({url})"
+        bot.send_message(
+            chat_id=uid, 
+            text=fallback_caption, 
+            parse_mode="Markdown", 
+            protect_content=True,
+            disable_web_page_preview=False
+        )
         return jsonify({"status": "success"})
+        
     except Exception as e:
         return jsonify({"error": str(e)})
 
