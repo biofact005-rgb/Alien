@@ -14,7 +14,7 @@ BIN_CHANNEL = int(os.environ.get("BIN_CHANNEL", "-1000000000000"))
 
 # Force Join Channels
 CHANNEL_1 = os.environ.get("CHANNEL_1", "@errorkids")
-CHANNEL_2 = os.environ.get("CHANNEL_2", "@testbotupdate") # Jaisa aapne update link diya
+CHANNEL_2 = os.environ.get("CHANNEL_2", "@testbotupdate") 
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
@@ -114,7 +114,6 @@ def force_join_menu():
         markup.row(InlineKeyboardButton("📢 Join Channel 2", url=f"https://t.me/{CHANNEL_2.replace('@', '')}", style="primary"))
         markup.row(InlineKeyboardButton("✅ VERIFY & CONTINUE", callback_data="verify_join", style="success"))
     except TypeError:
-        # Fallback agar hosting me pyTelegramBotAPI update nahi hai
         markup.row(InlineKeyboardButton("📢 Join Channel 1", url=f"https://t.me/{CHANNEL_1.replace('@', '')}"))
         markup.row(InlineKeyboardButton("📢 Join Channel 2", url=f"https://t.me/{CHANNEL_2.replace('@', '')}"))
         markup.row(InlineKeyboardButton("✅ VERIFY & CONTINUE", callback_data="verify_join"))
@@ -129,7 +128,6 @@ def home_menu():
             InlineKeyboardButton("🔄 Update", url="https://t.me/testbotupdate", style="primary")
         )
     except TypeError:
-        # Fallback agar hosting me pyTelegramBotAPI update nahi hai
         markup.row(InlineKeyboardButton("▶️ ENTER ALIESN BATCH 🍿", web_app=WebAppInfo(url=WEB_APP_URL)))
         markup.row(
             InlineKeyboardButton("🆘 Help", url="https://t.me/errorkidk_bot"),
@@ -227,7 +225,6 @@ def rename_vid(m):
 def handle_media(m):
     if str(m.from_user.id) != str(ADMIN_ID): return
     
-    # 📝 TXT Fallback
     if m.content_type == 'document' and m.document.file_name.endswith('.txt'):
         try:
             file_info = bot.get_file(m.document.file_id)
@@ -283,7 +280,7 @@ def handle_media(m):
     except Exception as e: bot.reply_to(m, f"Error: {e}")
 
 # ==========================================
-# 🌐 API ROUTES
+# 🌐 API ROUTES (FLASK)
 # ==========================================
 @app.route('/')
 def index(): return render_template('index.html') 
@@ -310,79 +307,33 @@ def delete_item():
     save_db(db_data)
     return jsonify({"status": "deleted"})
 
+# 🔥 AAPKA PERFECT FILE STREAM LOGIC
 @app.route('/api/send_to_chat', methods=['POST'])
 def send_to_chat():
     data = request.json
     uid = data.get('uid')
-    url = data.get('url').replace("http://https://", "https://").strip()
+    url = data.get('url')
     title = data.get('title')
-    item_type = data.get('type').upper()
-    
-    caption = f"📚 **{title}**\n📍 Type: {item_type}\n\n*Downloaded via Aliesn Batch*"
+    item_type = data.get('type') 
     
     try:
-        import re
         msg_id = None
-        from_chat = BIN_CHANNEL  # Default Bin Channel
-        
-        # 1️⃣ bot.local logic (Jab bot me direct file bhej ke upload kiya ho)
-        match_local = re.search(r'bot\.local/(\d+)/', url)
-        if match_local:
-            msg_id = int(match_local.group(1))
-            
-        # 2️⃣ t.me/c/... logic (Agar TXT me Private Channel ka link ho)
-        elif "t.me/c/" in url:
-            match = re.search(r't\.me/c/(\d+)/(\d+)', url)
-            if match:
-                from_chat = int("-100" + match.group(1)) # Private channel ID format
-                msg_id = int(match.group(2))
+        # Aapka hit logic jo har ID nikal leta hai!
+        for part in url.split('/'):
+            if part.isdigit():
+                msg_id = int(part)
+                break
                 
-        # 3️⃣ t.me/username/... logic (Agar TXT me Public Channel ka link ho)
-        elif "t.me/" in url:
-            match = re.search(r't\.me/([^/]+)/(\d+)', url)
-            if match and match.group(1) not in ['share', 'joinchat']:
-                from_chat = "@" + match.group(1)
-                msg_id = int(match.group(2))
-
-        # 🚀 ASLI JAADU: Agar Message ID mil gayi toh direct Telegram File copy karega!
         if msg_id:
-            try:
-                bot.copy_message(
-                    chat_id=uid, 
-                    from_chat_id=from_chat, 
-                    message_id=msg_id, 
-                    caption=caption, 
-                    parse_mode="Markdown", 
-                    protect_content=True # 🛡️ Anti-Save
-                )
-                return jsonify({"status": "success"})
-            except Exception as e:
-                print("Copy Error:", e)
-                pass # Agar kisi wajah se copy fail ho, toh neeche jayega
-                
-        # 🌐 EXTERNAL URL LOGIC: Agar direct MP4 ya PDF link ho, toh usko file me convert karega!
-        try:
-            if item_type == 'VIDEO':
-                bot.send_video(chat_id=uid, video=url, caption=caption, parse_mode="Markdown", protect_content=True)
-            else:
-                bot.send_document(chat_id=uid, document=url, caption=caption, parse_mode="Markdown", protect_content=True)
+            caption = f"📚 **{title}**\n📍 Type: {item_type.upper()}\n\n*Downloaded via Aliesn Batch*"
+            # Copy Message with Anti-Save (protect_content)
+            bot.copy_message(chat_id=uid, from_chat_id=BIN_CHANNEL, message_id=msg_id, protect_content=True, caption=caption, parse_mode="Markdown")
             return jsonify({"status": "success"})
-            
-        except Exception as e:
-            # ⚠️ ABSOLUTE FALLBACK: Jab kuch bhi kaam na kare, sirf tabhi text bhejega
-            fallback_caption = f"{caption}\n\n🔗 **Link:** [Click Here to Open]({url})"
-            bot.send_message(
-                chat_id=uid, 
-                text=fallback_caption, 
-                parse_mode="Markdown", 
-                protect_content=True,
-                disable_web_page_preview=False
-            )
-            return jsonify({"status": "success"})
-            
+        else:
+            return jsonify({"error": "Link invalid hai!"})
     except Exception as e:
         return jsonify({"error": str(e)})
-        
+
 if __name__ == "__main__":
     t = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))))
     t.start()
