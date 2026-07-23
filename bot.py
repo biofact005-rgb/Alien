@@ -318,30 +318,43 @@ def send_to_chat():
     title = data.get('title')
     item_type = data.get('type').upper()
     
-    # Ye caption actual video/file ke niche aayega
     caption = f"📚 **{title}**\n📍 Type: {item_type}\n\n*Downloaded via Aliesn Batch*"
     
     try:
-        # 🟢 LOGIC: Agar file humare BIN_CHANNEL me upload hui thi (bot.local URL)
-        if "bot.local" in url:
-            import re
-            # URL me se message ID nikalenge (e.g., https://bot.local/1234/video.mp4 -> 1234)
-            match = re.search(r'bot\.local/(\d+)/', url)
-            if match:
-                msg_id = int(match.group(1))
-                
-                # 🚀 ASLI JAADU: Bin channel se direct File/Video utha ke user ko bhejega
+        import re
+        msg_id = None
+        
+        # 1️⃣ Check karega ki naya format (bot.local) hai kya?
+        match_local = re.search(r'bot\.local/(\d+)/', url)
+        if match_local:
+            msg_id = int(match_local.group(1))
+            
+        # 2️⃣ Check karega ki TXT File wala purana Telegram link hai kya?
+        elif "t.me/" in url:
+            try:
+                # Example: https://t.me/c/123456/678 -> extract 678
+                msg_id = int(url.rstrip('/').split('/')[-1].split('?')[0])
+            except:
+                pass
+
+        # 🚀 ASLI JAADU: Agar Message ID mil gayi toh direct File Stream bhejega!
+        if msg_id:
+            try:
                 bot.copy_message(
                     chat_id=uid, 
                     from_chat_id=BIN_CHANNEL, 
                     message_id=msg_id, 
                     caption=caption, 
                     parse_mode="Markdown", 
-                    protect_content=True # 🛡️ Anti-Save yaha bhi kaam karega!
+                    protect_content=True # 🛡️ Anti-Save yaha bhi kaam karega
                 )
                 return jsonify({"status": "success"})
-                
-        # 🟡 FALLBACK: Agar TXT file ke zariye YouTube ya koi bahar ka link dala hai
+            except Exception as copy_err:
+                # Agar copy fail hua (file delete ho gayi ya bot admin nahi hai) toh aage badhega
+                print("Copy Error:", copy_err)
+                pass
+            
+        # ⚠️ FALLBACK: Agar link YouTube ya bahar ka hai, toh normal Text me bhejega
         fallback_caption = f"{caption}\n\n🔗 **Link:** [Click Here to Open]({url})"
         bot.send_message(
             chat_id=uid, 
@@ -354,7 +367,7 @@ def send_to_chat():
         
     except Exception as e:
         return jsonify({"error": str(e)})
-
+        
 if __name__ == "__main__":
     t = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))))
     t.start()
