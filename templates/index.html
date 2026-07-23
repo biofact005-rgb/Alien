@@ -156,6 +156,22 @@
 
         .btn-offline { background: linear-gradient(135deg, #0f172a, #082f49); border: 1px solid var(--primary); color: #fff; box-shadow: 0 4px 15px rgba(0, 229, 255, 0.2);}
         .btn-doc { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid var(--secondary); color: #fff; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);}
+   /* ==========================================
+           ⏱️ CONTINUE WATCHING (RECENT CARDS)
+        ========================================== */
+        .recent-section { margin-top: 15px; width: 100%; display: none; flex-direction: column; }
+        .recent-title { font-size: 1.1rem; color: #fff; font-weight: 600; font-family: 'Orbitron'; margin-bottom: 12px; }
+        
+        .recent-container { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 15px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .recent-container::-webkit-scrollbar { display: none; }
+        
+        .recent-card { min-width: 200px; width: 220px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; padding: 12px; scroll-snap-align: start; box-shadow: 0 4px 15px rgba(0,0,0,0.2); cursor: pointer; transition: 0.3s; flex-shrink: 0; position: relative; overflow: hidden;}
+        .recent-card:active { transform: scale(0.96); background: rgba(0, 229, 255, 0.05); }
+        
+        .recent-vid-title { font-size: 0.9rem; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px; }
+        
+        .progress-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; margin-top: 5px;}
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--secondary)); width: 0%; box-shadow: 0 0 10px var(--primary-glow); transition: width 0.3s;}
     </style>
 </head>
 <body>
@@ -190,6 +206,14 @@
             </div>
         </div>
     </div>
+
+    <!-- ⏱️ CONTINUE WATCHING SECTION -->
+        <div class="recent-section" id="recent-section">
+            <div class="recent-title">⏱️ Continue Watching</div>
+            <div class="recent-container" id="recent-container">
+                <!-- Cards yahan auto-generate honge -->
+            </div>
+        </div>
 
     <!-- 📁 FOLDER SCREEN -->
     <div id="folder-screen" class="screen">
@@ -552,6 +576,141 @@
             document.getElementById('folder-screen').style.display='flex'; 
         }
 
+
+
+        // ==========================================
+        // ⏱️ RECENT LECTURE TRACKER (Netflix Style)
+        // ==========================================
+        function renderRecentVideos() {
+            let recents = JSON.parse(localStorage.getItem('aliesn_recent') || '[]');
+            let section = document.getElementById('recent-section');
+            let container = document.getElementById('recent-container');
+            
+            if (recents.length === 0) {
+                section.style.display = 'none'; return;
+            }
+            
+            section.style.display = 'flex';
+            container.innerHTML = '';
+            
+            recents.forEach(vid => {
+                let percent = vid.duration ? Math.min(100, (vid.currentTime / vid.duration) * 100) : 0;
+                let card = document.createElement('div');
+                card.className = 'recent-card';
+                card.innerHTML = `
+                    <div style="font-size: 0.7rem; color: var(--primary); margin-bottom: 3px; font-weight: 700;">🎥 LECTURE</div>
+                    <div class="recent-vid-title">${vid.title}</div>
+                    <div class="progress-bg">
+                        <div class="progress-fill" style="width: ${percent}%;"></div>
+                    </div>
+                `;
+                // Click karte hi direct video khulegi!
+                card.onclick = () => playVideo(vid, true);
+                container.appendChild(card);
+            });
+        }
+
+        // Home page load hote hi Recent list update kar do
+        renderRecentVideos(); 
+
+        function saveProgress(currentTime, duration) {
+            if (!currentVid || !duration || duration === 0) return;
+            let recents = JSON.parse(localStorage.getItem('aliesn_recent') || '[]');
+            
+            // Purani entry hatao
+            recents = recents.filter(v => v.url !== currentVid.url); 
+            
+            // Nayi entry sabse aage dalo
+            recents.unshift({
+                ...currentVid, 
+                currentTime: currentTime, 
+                duration: duration
+            });
+            
+            // 5 se zyada ho toh aakhiri wali hata do
+            if (recents.length > 5) recents.pop();
+            
+            localStorage.setItem('aliesn_recent', JSON.stringify(recents));
+            renderRecentVideos(); // Background me UI update
+        }
+
+        // ==========================================
+        // 🎥 UPDATED VIDEO PLAYER (Time Resume Logic ke sath)
+        // ==========================================
+        function playVideo(vidInfo, fromRecent = false) {
+            currentVid = vidInfo;
+            document.querySelectorAll('.screen').forEach(s => s.style.display='none'); 
+            document.getElementById('video-screen').style.display = 'flex';
+            
+            document.getElementById('np-title').innerText = vidInfo.title;
+            document.getElementById('pdf-btn').style.display = (vidInfo.pdf && vidInfo.pdf !== "#") ? 'flex' : 'none';
+            document.getElementById('dpp-btn').style.display = (vidInfo.dpp && vidInfo.dpp !== "#") ? 'flex' : 'none';
+
+            let container = document.getElementById('video-container');
+            let isYouTube = vidInfo.url.includes('youtube.com') || vidInfo.url.includes('youtu.be');
+
+            // Find if video has saved time
+            let savedData = JSON.parse(localStorage.getItem('aliesn_recent') || '[]').find(v => v.url === vidInfo.url);
+            let resumeTime = savedData ? savedData.currentTime : 0;
+
+            if (isYouTube) {
+                if (art) { art.destroy(); art = null; } 
+                let ytId = "";
+                let match = vidInfo.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})/);
+                if (match && match[1]) ytId = match[1];
+                
+                // YouTube me iframe se exact time nikalna mushkil hai, toh bas 0 sec se add kar denge recents me
+                saveProgress(0, 100); 
+                container.innerHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1&autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%;"></iframe>`;
+            
+            } else {
+                container.innerHTML = ''; 
+                
+                if (art) {
+                    art.switchUrl(vidInfo.url, vidInfo.title);
+                } else {
+                    art = new Artplayer({
+                        container: '#video-container',
+                        url: vidInfo.url,
+                        title: vidInfo.title,
+                        theme: '#00e5ff',           
+                        playbackRate: true,         
+                        setting: true,              
+                        fullscreen: false,       
+                        fullscreenWeb: true,     
+                        fastForward: true,          
+                        lock: true,                 
+                        autoPlayback: true,
+                        dblclickFullscreen: false,  
+                    });
+
+                    // ⚡ RESUME EXACT TIME MAGIC
+                    art.once('ready', () => {
+                        if (resumeTime > 0) {
+                            art.currentTime = resumeTime;
+                            if(fromRecent) showToast("⏱️ Resumed from last watched time!");
+                        }
+                    });
+
+                    // ⚡ SAVE TIME IN BACKGROUND (Smart Save, Har 5 Second)
+                    let lastSaveTime = 0;
+                    art.on('timeupdate', () => {
+                        let now = Date.now();
+                        if (now - lastSaveTime > 5000) { // Har 5 seconds me ek bar hi save hoga (No Lag!)
+                            saveProgress(art.currentTime, art.duration);
+                            lastSaveTime = now;
+                        }
+                    });
+                    
+                    // Jab pause ho, tab bhi ek baar final save mar do
+                    art.on('pause', () => saveProgress(art.currentTime, art.duration));
+
+                    // Baaki aapka Rotate aur Double Tap ka purana code niche same rahega...
+                    // (Double tap seek aur Rotated seek ka code yaha waise ka waisa rehne dena)
+                }
+                art.play();
+            }
+        }
         
     </script>
 </body>
