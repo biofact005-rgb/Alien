@@ -317,16 +317,86 @@
                     d.onclick = () => playVideo(vid); list.appendChild(d);
                 });
             } else {
-                Object.keys(ref).forEach(k => {
-                    if (k === 'mode' || k === 'data') return;
-                    let d = document.createElement('div'); d.className = 'glass-box';
-                    d.innerHTML = `<span style="font-size:1.6rem; margin-right:15px; text-shadow: 0 0 10px var(--primary-glow);">📁</span> <span style="font-weight:600; font-size:1.05rem; word-break: break-word;">${k}</span>`;
-                    d.onclick = () => doorTransition([...path, k]);
-                    
-                    if(String(user.id) === "8718760365") {
-                        let delBtn = document.createElement('span'); delBtn.innerText = '🗑️'; delBtn.style.marginLeft = 'auto'; delBtn.style.fontSize = '1.3rem';
-                        delBtn.onclick = (e) => { e.stopPropagation(); deleteItem(k); }; d.appendChild(delBtn);
+                // 🔥 NAYA FEATURE: STAR / PIN LOGIC
+                let allFolders = Object.keys(ref).filter(k => k !== 'mode' && k !== 'data');
+                
+                // Pinned items ko browser ki memory se nikalo
+                let savedStars = JSON.parse(localStorage.getItem('aliesn_pinned') || '[]');
+                
+                // Folders ko 2 hisso me baanto (Pinned and Unpinned)
+                let pinnedFolders = [];
+                let normalFolders = [];
+                
+                allFolders.forEach(k => {
+                    let fullPathKey = [...path, k].join('/');
+                    if(savedStars.includes(fullPathKey)) {
+                        pinnedFolders.push(k);
+                    } else {
+                        normalFolders.push(k);
                     }
+                });
+
+                // Pinned walo ko hamesha list me top par rakho
+                let sortedFolders = [...pinnedFolders, ...normalFolders];
+
+                sortedFolders.forEach(k => {
+                    let fullPathKey = [...path, k].join('/');
+                    let isPinned = savedStars.includes(fullPathKey);
+
+                    let d = document.createElement('div'); 
+                    d.className = 'glass-box';
+                    d.style.display = 'flex';
+                    d.style.justifyContent = 'space-between';
+                    d.style.alignItems = 'center';
+                    
+                    // Left side (Folder Name & Icon)
+                    let leftSide = document.createElement('div');
+                    leftSide.style.display = 'flex';
+                    leftSide.style.alignItems = 'center';
+                    leftSide.style.width = '70%';
+                    leftSide.innerHTML = `<span style="font-size:1.6rem; margin-right:15px; text-shadow: 0 0 10px var(--primary-glow);">📁</span> <span style="font-weight:600; font-size:1.05rem; word-break: break-word;">${k}</span>`;
+                    leftSide.onclick = () => doorTransition([...path, k]);
+
+                    // Right side (Star Button & Admin Delete)
+                    let rightSide = document.createElement('div');
+                    rightSide.style.display = 'flex';
+                    rightSide.style.alignItems = 'center';
+                    rightSide.style.gap = '15px';
+
+                    // 🌟 Star Icon Logic
+                    let starBtn = document.createElement('span');
+                    starBtn.innerHTML = isPinned ? '⭐' : '☆'; // Agar pinned hai to chamakta sitara, warna khali outline
+                    starBtn.style.fontSize = '1.5rem';
+                    starBtn.style.color = isPinned ? '#FFD700' : '#888';
+                    starBtn.style.transition = '0.3s';
+                    
+                    starBtn.onclick = (e) => {
+                        e.stopPropagation(); // Folder open hone se rokega
+                        let currentStars = JSON.parse(localStorage.getItem('aliesn_pinned') || '[]');
+                        if(currentStars.includes(fullPathKey)) {
+                            currentStars = currentStars.filter(s => s !== fullPathKey); // Unpin
+                        } else {
+                            currentStars.push(fullPathKey); // Pin
+                        }
+                        localStorage.setItem('aliesn_pinned', JSON.stringify(currentStars));
+                        
+                        try { tg.HapticFeedback.impactOccurred('light'); } catch(err){} // Vibrate phone
+                        renderFolder(); // Turant refresh kar dega bina buffering
+                    };
+
+                    rightSide.appendChild(starBtn);
+
+                    // 🗑️ Admin Delete Button (Sirf admin ko dikhega)
+                    if(String(user.id) === "8718760365") {
+                        let delBtn = document.createElement('span'); 
+                        delBtn.innerText = '🗑️'; 
+                        delBtn.style.fontSize = '1.3rem';
+                        delBtn.onclick = (e) => { e.stopPropagation(); deleteItem(k); }; 
+                        rightSide.appendChild(delBtn);
+                    }
+
+                    d.appendChild(leftSide);
+                    d.appendChild(rightSide);
                     list.appendChild(d);
                 });
             }
